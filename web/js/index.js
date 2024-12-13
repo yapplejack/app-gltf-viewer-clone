@@ -1,39 +1,9 @@
-import { WEBGL } from 'three/examples/jsm/WebGL.js'; 
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { TrackballControls } from 'three/examples/jsm/controls/TrackballControls.js';
-
 /**
  * The <select> element that allows the user to pick an item to translate.
  */
 const $elemSelector = document.getElementById('elem-selector');
 
 let isError = false;
-
-/**
- * Execute a polling action until a particular outcome is achieved.
- * 
- * @param {number} intervalInSeconds The number of seconds between each poll request.
- * @param {Function<void,Promise>} promiseProducer The function which when called will perform the HTTP request and return a Promise.
- * @param {Function<Response,boolean>} stopCondFunc The function to be called on the result of `promiseProducer`; return true to stop polling.
- * @param {Function<string,void>} then The function to be called with the response body of the last polling request.
- */
-const poll = (intervalInSeconds, promiseProducer, stopCondFunc, then) => {
-    /**
-     * Call `promiseProducer`, check if we should stop polling, and either call `then` with
-     * the result, or call `setTimeout` to execute again in `intervalInSeconds` seconds.
-     */
-    const pollAndCheck = async () => {
-        const res = await promiseProducer();
-        if (stopCondFunc(res)) {
-            const body = await res.text();
-            then(body);
-        } else {
-            setTimeout(pollAndCheck, intervalInSeconds * 1000);
-        }
-    }
-    // Start polling...
-    pollAndCheck();
-};
 
 /**
  * Display an error message to the user.
@@ -52,47 +22,6 @@ const displayError = (msg) => {
     $msgElem.innerText = msg;
     $viewport.insertBefore($msgElem, $viewport.firstChild);
 }
-
-/**
- * Remove an error message that was shown.
- */
-const removeError = () => {
-    isError = false;
-    const $viewport = document.getElementById('gltf-viewport');
-    let $msgElem = document.getElementById('error-div');
-    if ($msgElem) $viewport.removeChild($msgElem);
-}
-
-if (!WEBGL.isWebGLAvailable()) {
-    console.error('WebGL is not supported in this browser');
-    document.getElementById('gltf-viewport').appendChild(WEBGL.getWebGLErrorMessage());
-}
-
-const { loadGltf, clearGltfCanvas, exportGltf } = initThreeJsElements();
-
-$elemSelector.addEventListener('change', async (evt) => {
-    // Trigger translation by getting /api/gltf
-    const selectedOption = evt.target.options[event.target.selectedIndex];
-    clearGltfCanvas();
-    if (selectedOption.innerText !== 'Select an Element') {
-        try {
-            document.body.style.cursor = 'progress';
-            const resp = await fetch(`/api/gltf${evt.target.options[event.target.selectedIndex].getAttribute('href')}`);
-            const json = await resp.json();
-            poll(5, () => fetch(`/api/gltf/${json.id}`), (resp) => resp.status !== 202, (resp) => {
-                let respJson = JSON.parse(resp);
-                if (respJson.error) {
-                    displayError('There was an error translating the model to GLTF: ' + respJson.error);
-                } else {
-                    console.log('Loading GLTF data...');
-                    loadGltf(resp);
-                }
-            });
-        } catch (err) {
-            displayError(`Error requesting GLTF data translation: ${err}`);
-        }
-    }
-});
 
 // Get the Elements for the dropdown
 fetch(`/api/elements${window.location.search}`, { headers: { 'Accept': 'application/json' } })
